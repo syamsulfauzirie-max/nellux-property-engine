@@ -10,19 +10,23 @@ type TavilyResult = {
 };
 
 function classifySource(url: string) {
-  const host = new URL(url).hostname.toLowerCase();
+  try {
+    const host = new URL(url).hostname.toLowerCase();
 
-  if (host.includes("facebook.com")) return "Facebook";
-  if (host.includes("instagram.com")) return "Instagram";
-  if (host.includes("tiktok.com")) return "TikTok";
-  if (host.includes("threads.net")) return "Threads";
-  if (host.includes("youtube.com") || host.includes("youtu.be")) return "YouTube";
+    if (host.includes("facebook.com")) return "Facebook";
+    if (host.includes("instagram.com")) return "Instagram";
+    if (host.includes("tiktok.com")) return "TikTok";
+    if (host.includes("threads.net")) return "Threads";
+    if (host.includes("youtube.com") || host.includes("youtu.be")) return "YouTube";
 
-  if (/rumah123|99\.co|lamudi|rumah\.com|olx\.co\.id|dotproperty/.test(host)) {
-    return "Portal properti";
+    if (/rumah123|99\.co|lamudi|rumah\.com|olx\.co\.id|dotproperty/.test(host)) {
+      return "Portal properti";
+    }
+
+    return "Web lainnya";
+  } catch {
+    return "Web lainnya";
   }
-
-  return "Web lainnya";
 }
 
 function isLikelySearchPage(item: TavilyResult) {
@@ -60,14 +64,34 @@ function isLikelySearchPage(item: TavilyResult) {
 
     const parts = path.split("/").filter(Boolean);
 
-    if (parts.length <= 2 && parts.some(part => generic.includes(part))) {
-      return true;
-    }
-
-    return false;
+    return parts.length <= 2 && parts.some(part => generic.includes(part));
   } catch {
     return true;
   }
+}
+
+function parseNumber(raw: string): number | null {
+  let value = raw.trim();
+
+  if (value.includes(",") && value.includes(".")) {
+    if (value.lastIndexOf(",") > value.lastIndexOf(".")) {
+      value = value.replace(/\./g, "").replace(",", ".");
+    } else {
+      value = value.replace(/,/g, "");
+    }
+  } else if (value.includes(",") || value.includes(".")) {
+    const separator = value.includes(",") ? "," : ".";
+    const parts = value.split(separator);
+
+    if (parts.length === 2 && parts[1].length <= 2) {
+      value = parts[0] + "." + parts[1];
+    } else {
+      value = value.replace(/[,.]/g, "");
+    }
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function parseMoney(text: string): number | null {
@@ -82,10 +106,8 @@ function parseMoney(text: string): number | null {
     const match = pattern.exec(value);
     if (!match) continue;
 
-    const raw = match[1].replace(/,/g, "");
-    const number = Number(raw);
-
-    if (!Number.isFinite(number)) continue;
+    const number = parseNumber(match[1]);
+    if (number === null) continue;
 
     const unit = (match[2] || "").toLowerCase();
 
@@ -102,6 +124,17 @@ function parseMoney(text: string): number | null {
 function ownerClue(text: string) {
   const value = text.toLowerCase();
 
+  const agentTerms = [
+    "agen properti",
+    "property agent",
+    "marketing properti",
+    "broker",
+    "agency",
+    "kantor agen",
+    "agen rumah",
+    "agent property"
+  ];
+
   const ownerTerms = [
     "owner langsung",
     "pemilik langsung",
@@ -110,24 +143,22 @@ function ownerClue(text: string) {
     "tanpa perantara",
     "tangan pertama",
     "jual dari owner",
-    "pemilik rumah"
+    "pemilik rumah",
+    "jual langsung pemilik",
+    "rumah pribadi",
+    "pemilik pertama",
+    "langsung dari pemilik",
+    "tanpa agen",
+    "nomor pemilik",
+    "hubungi pemilik"
   ];
-
-  const agentTerms = [
-    "agen properti",
-    "property agent",
-    "marketing properti",
-    "broker",
-    "agency",
-    "kantor agen"
-  ];
-
-  if (ownerTerms.some(term => value.includes(term))) {
-    return "Indikasi owner";
-  }
 
   if (agentTerms.some(term => value.includes(term))) {
     return "Indikasi agen";
+  }
+
+  if (ownerTerms.some(term => value.includes(term))) {
+    return "Indikasi owner";
   }
 
   return "Belum diketahui";
@@ -166,40 +197,31 @@ export async function GET(request: Request) {
 
   const queries = [
     base + ' (jual OR dijual OR disewakan) (rumah OR tanah OR ruko) (owner OR pemilik OR langsung)',
-
     base + ' site:facebook.com (jual OR dijual OR disewakan) properti',
-
     base + ' site:instagram.com (jual OR dijual OR disewakan) properti',
-
     base + ' site:tiktok.com properti dijual disewakan',
-
     base + ' site:threads.net properti dijual disewakan',
-
     base + ' site:youtube.com properti dijual disewakan',
-
     base + ' site:rumah123.com OR site:99.co OR site:rumah.com OR site:olx.co.id OR site:dotproperty.id'
   ];
 
   try {
     const batches = await Promise.all(
       queries.map(async query => {
-        const response = await fetch(
-          "https://api.tavily.com/search",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              api_key: apiKey,
-              query,
-              search_depth: "basic",
-              max_results: 10,
-              include_answer: false
-            }),
-            cache: "no-store"
-          }
-        );
+        const response = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            api_key: apiKey,
+            query,
+            search_depth: "basic",
+            max_results: 10,
+            include_answer: false
+          }),
+          cache: "no-store"
+        });
 
         if (!response.ok) return [];
 
@@ -247,7 +269,8 @@ export async function GET(request: Request) {
         };
       })
       .filter(item => {
-        if (budget === null || item.price === null) return true;
+        if (budget === null) return true;
+        if (item.price === null) return false;
         return item.price <= budget;
       })
       .sort((a, b) => {
