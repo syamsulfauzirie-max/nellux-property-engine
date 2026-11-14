@@ -1,59 +1,31 @@
 
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #101b35;
+  --color-gold: #d7b66b;
+  --color-surface: #f3f6fb;
+}
+
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
-  color: #0f172a;
+  padding: 0;
+  min-height: 100%;
 }
 
-.min-h-screen { min-height: 100vh; }
-.bg-slate-100 { background: #f1f5f9; }
-.bg-white { background: white; }
-.bg-slate-900 { background: #0f172a; }
-
-.p-6 { padding: 24px; }
-.p-3 { padding: 12px; }
-.px-6 { padding-left: 24px; padding-right: 24px; }
-.py-3 { padding-top: 12px; padding-bottom: 12px; }
-
-.mb-8 { margin-bottom: 32px; }
-.mb-4 { margin-bottom: 16px; }
-.mt-2 { margin-top: 8px; }
-.mt-5 { margin-top: 20px; }
-.mt-10 { margin-top: 40px; }
-
-.grid { display: grid; }
-.gap-4 { gap: 16px; }
-.md\:grid-cols-2,
-.md\:grid-cols-3 { grid-template-columns: 1fr; }
-
-.rounded-xl { border-radius: 12px; }
-.rounded-lg { border-radius: 8px; }
-.border { border: 1px solid #cbd5e1; }
-.shadow { box-shadow: 0 2px 8px #00000010; }
-
-.text-3xl { font-size: 30px; }
-.text-xl { font-size: 20px; }
-.text-sm { font-size: 14px; }
-.font-bold { font-weight: 700; }
-.font-semibold { font-weight: 600; }
-
-.text-slate-900 { color: #0f172a; }
-.text-slate-500 { color: #64748b; }
-.text-slate-400 { color: #94a3b8; }
-.text-white { color: white; }
-.text-center { text-align: center; }
-.w-full { width: 100%; }
-
-button {
-  border: 0;
-  cursor: pointer;
+body {
+  background: #f3f6fb;
+  color: #101b35;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-@media (min-width: 768px) {
-  .md\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-  .md\:grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+button,
+input,
+select {
+  font: inherit;
 }
