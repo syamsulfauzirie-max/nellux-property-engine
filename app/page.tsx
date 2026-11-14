@@ -7,6 +7,10 @@ type Result = {
   title: string;
   url: string;
   snippet: string;
+  source?: string;
+  owner_status?: string;
+  price?: number | null;
+  price_status?: string;
 };
 
 export default function Home() {
@@ -33,7 +37,7 @@ export default function Home() {
         location,
         type,
         transaction,
-        budget
+        budget,
       });
 
       const response = await fetch(
@@ -60,8 +64,20 @@ export default function Home() {
     }
   }
 
+  function formatPrice(price?: number | null) {
+    if (price == null || !Number.isFinite(price)) {
+      return "Harga belum ditemukan";
+    }
+
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(price);
+  }
+
   return (
-    <main className="min-h-screen bg-slate-100 p-6">
+    <main className="min-h-screen bg-slate-100 p-5 md:p-8">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">
           NELLUX PROPERTY
@@ -71,7 +87,7 @@ export default function Home() {
         </p>
       </header>
 
-      <section className="rounded-xl bg-white p-6 shadow">
+      <section className="rounded-xl bg-white p-5 shadow">
         <h2 className="mb-4 text-xl font-bold">
           Pencarian Properti Langsung
         </h2>
@@ -112,7 +128,7 @@ export default function Home() {
 
         <input
           className="mt-4 w-full rounded-lg border p-3"
-          placeholder="Anggaran maksimal (opsional), contoh Rp400 juta"
+          placeholder="Anggaran maksimal, contoh Rp400 juta"
           value={budget}
           onChange={(e) => setBudget(e.target.value)}
         />
@@ -120,16 +136,19 @@ export default function Home() {
         <button
           onClick={searchProperty}
           disabled={loading}
-          className="mt-5 rounded-lg bg-slate-900 px-6 py-3 font-semibold text-white"
+          className="mt-5 rounded-lg bg-slate-900 px-6 py-3 font-semibold text-white disabled:opacity-50"
         >
           {loading ? "Sedang mencari..." : "Cari Properti"}
         </button>
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-4 text-xl font-bold">
-          Hasil Pencarian
-        </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-bold">Hasil Pencarian</h2>
+          <span className="text-sm text-slate-500">
+            {results.length} hasil ditemukan
+          </span>
+        </div>
 
         {error && (
           <p className="mb-4 rounded-lg bg-white p-4 text-slate-700">
@@ -143,11 +162,31 @@ export default function Home() {
               key={item.url || index}
               className="rounded-xl bg-white p-5 shadow"
             >
+              <div className="mb-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {item.source || "Sumber tidak diketahui"}
+                </span>
+
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">
+                  {item.owner_status || "Belum diketahui"}
+                </span>
+              </div>
+
               <h3 className="font-bold text-slate-900">
                 {item.title}
               </h3>
 
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-lg font-bold text-green-700">
+                {formatPrice(item.price)}
+              </p>
+
+              {item.price_status && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Status harga: {item.price_status}
+                </p>
+              )}
+
+              <p className="mt-3 text-sm leading-relaxed text-slate-600">
                 {item.snippet}
               </p>
 
@@ -164,7 +203,13 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="mt-10 text-center text-sm text-slate-400">
+      <p className="mt-8 text-center text-xs text-slate-500">
+        Hasil berasal dari konten publik yang terindeks.
+        Indikasi owner bukan verifikasi identitas pemilik.
+        Harga yang tidak ditemukan perlu dikonfirmasi.
+      </p>
+
+      <footer className="mt-6 text-center text-sm text-slate-400">
         Nellux Property © 2026
       </footer>
     </main>
