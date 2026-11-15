@@ -10,16 +10,69 @@ type SearchResult = {
   published_date?: string;
 };
 
+const DEMAND_PHRASES = [
+  "butuh rumah",
+  "butuh tanah",
+  "butuh ruko",
+  "butuh kontrakan",
+  "cari rumah",
+  "cari tanah",
+  "cari ruko",
+  "cari kontrakan",
+  "mencari rumah",
+  "mencari tanah",
+  "mencari properti",
+  "sedang mencari",
+  "lagi cari rumah",
+  "ada yang punya rumah",
+  "ada rekomendasi rumah",
+  "minta rekomendasi rumah",
+  "minta info rumah",
+  "siapa tahu ada rumah",
+  "sedang membutuhkan rumah",
+  "looking for a house",
+  "looking for property"
+];
+
+const OFFER_PHRASES = [
+  "saya jual rumah",
+  "kami jual rumah",
+  "rumah dijual",
+  "tanah dijual",
+  "ruko dijual",
+  "disewakan rumah",
+  "disewakan ruko",
+  "open listing",
+  "open titip jual",
+  "hubungi saya untuk membeli",
+  "marketing properti",
+  "agen properti"
+];
+
 function getSource(url: string) {
-  if (url.includes("threads.net")) return "Threads";
-  if (url.includes("facebook.com")) return "Facebook";
-  if (url.includes("instagram.com")) return "Instagram";
-  return "Google / Web";
+  const host = new URL(url).hostname.toLowerCase();
+
+  if (host.includes("threads.net")) return "Threads";
+  if (host.includes("facebook.com")) return "Facebook";
+  if (host.includes("instagram.com")) return "Instagram";
+  if (host.includes("youtube.com")) return "YouTube";
+
+  return "Web / Forum";
 }
 
-function extractLead(item: SearchResult, searchLocation: string) {
+function analyzeLead(item: SearchResult, searchLocation: string) {
   const text = `${item.title || ""} ${item.content || ""}`;
   const lower = text.toLowerCase();
+
+  const demandSignals = DEMAND_PHRASES.filter(
+    phrase => lower.includes(phrase)
+  );
+
+  const offerSignals = OFFER_PHRASES.filter(
+    phrase => lower.includes(phrase)
+  );
+
+  const isDemand = demandSignals.length > 0;
 
   const propertyTypes = [
     ["rumah", ["rumah", "hunian"]],
@@ -36,11 +89,18 @@ function extractLead(item: SearchResult, searchLocation: string) {
       words.some(word => lower.includes(word))
     )?.[0] || "Belum diketahui";
 
-  const rentWords = ["sewa", "kontrak", "disewakan", "menyewa", "tenant"];
-  const buyWords = ["beli", "membeli", "butuh rumah", "cari rumah", "mencari rumah"];
+  const rentSignals = [
+    "sewa", "kontrak", "menyewa", "disewa",
+    "dikontrakkan", "butuh kontrakan"
+  ];
 
-  const isRent = rentWords.some(word => lower.includes(word));
-  const isBuy = buyWords.some(word => lower.includes(word));
+  const buySignals = [
+    "beli", "membeli", "budget", "anggaran",
+    "butuh rumah", "cari rumah", "mencari rumah"
+  ];
+
+  const isRent = rentSignals.some(word => lower.includes(word));
+  const isBuy = buySignals.some(word => lower.includes(word));
 
   const transaction =
     isRent && !isBuy ? "Sewa" :
@@ -60,7 +120,7 @@ function extractLead(item: SearchResult, searchLocation: string) {
   const budgetText = budgetMatch?.[0] || "Belum disebutkan";
 
   const locationMatch = text.match(
-    /(?:di|area|wilayah|sekitar|daerah)\s+([a-z][a-z\s-]{2,35})/i
+    /(?:di|area|wilayah|sekitar|daerah|dekat)\s+([a-z][a-z\s-]{2,35})/i
   );
 
   const detectedLocation = locationMatch?.[1]
@@ -73,10 +133,7 @@ function extractLead(item: SearchResult, searchLocation: string) {
   const signals: string[] = [];
   let score = 0;
 
-  if (
-    ["butuh", "cari", "mencari", "sedang mencari", "looking for"]
-      .some(word => lower.includes(word))
-  ) {
+  if (isDemand) {
     score += 30;
     signals.push("Ada indikasi kebutuhan properti");
   }
@@ -106,6 +163,10 @@ function extractLead(item: SearchResult, searchLocation: string) {
     signals.push("Tanggal posting tersedia");
   }
 
+  if (offerSignals.length > 0 && demandSignals.length === 0) {
+    score = 0;
+  }
+
   const scoreLabel =
     score >= 75 ? "Prioritas Tinggi" :
     score >= 45 ? "Prioritas Sedang" :
@@ -117,18 +178,18 @@ function extractLead(item: SearchResult, searchLocation: string) {
     snippet: item.content || "",
     source: getSource(item.url || ""),
     published_date: item.published_date || null,
-
     lead_type: leadType,
     transaction,
     property_type: propertyType,
     location,
     search_location: searchLocation,
     budget: budgetText,
-
     score,
     score_label: scoreLabel,
     signals,
-    intent_match: "Indikasi membutuhkan properti"
+    intent_match: isDemand
+      ? "Indikasi kebutuhan properti"
+      : "Perlu verifikasi"
   };
 }
 
@@ -159,10 +220,14 @@ export async function GET(request: Request) {
   const base = `${type} ${location} ${transaction} ${budget}`;
 
   const queries = [
-    `${base} ("butuh rumah" OR "cari rumah" OR "mencari rumah") site:threads.net`,
+    `${base} ("butuh rumah" OR "cari rumah" OR "mencari rumah" OR "ada rekomendasi rumah")`,
+    `${base} ("butuh tanah" OR "cari tanah" OR "mencari tanah" OR "tanah untuk investasi")`,
+    `${base} ("butuh ruko" OR "cari ruko" OR "mencari ruko" OR "ruko untuk usaha")`,
+    `${base} ("ada yang punya rumah" OR "minta info rumah" OR "siapa tahu ada rumah")`,
+    `${base} ("butuh" OR "cari" OR "mencari" OR "looking for") site:threads.net`,
     `${base} ("butuh" OR "cari" OR "mencari") site:facebook.com`,
     `${base} ("butuh" OR "cari" OR "mencari") site:instagram.com`,
-    `${base} ("mencari rumah" OR "butuh tanah" OR "cari ruko")`
+    `${base} kebutuhan properti forum komunitas`
   ];
 
   try {
@@ -205,31 +270,33 @@ export async function GET(request: Request) {
 
         const key = url.origin + url.pathname;
 
-        if (!unique.has(key)) unique.set(key, item);
+        if (!unique.has(key)) {
+          unique.set(key, item);
+        }
       } catch {
         continue;
       }
     }
 
     const results = Array.from(unique.values())
-      .filter(item => {
-        const text = `${item.title || ""} ${item.content || ""}`.toLowerCase();
-
-        return [
-          "butuh rumah", "butuh tanah", "butuh ruko",
-          "butuh kontrakan", "cari rumah", "cari tanah",
-          "cari ruko", "cari kontrakan", "mencari rumah",
-          "mencari tanah", "mencari properti",
-          "sedang mencari", "looking for a house"
-        ].some(word => text.includes(word));
-      })
-      .map(item => extractLead(item, location))
+      .map(item => analyzeLead(item, location))
+      .filter(lead =>
+        lead.score > 0 &&
+        lead.signals.includes("Ada indikasi kebutuhan properti")
+      )
       .sort((a, b) => b.score - a.score);
 
     return NextResponse.json({
       success: true,
       query: base,
       result_count: results.length,
+      sources_searched: [
+        "Web",
+        "Threads",
+        "Facebook",
+        "Instagram",
+        "Forum"
+      ],
       results
     });
 
