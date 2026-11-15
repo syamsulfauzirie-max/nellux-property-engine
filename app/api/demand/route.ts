@@ -1,13 +1,18 @@
-const adminMatch = text.match(
-  /\b(kecamatan|kec\.?|kelurahan|kel\.?|desa|kabupaten|kab\.?|kota)\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga)|[,.;!?]|$)/i
-);
+const rentIntent =
+  /\b(sewa|menyewa|kontrakan|kontrak|kos|kost|indekos)\b/i.test(lower)
+  && demandSignals.length > 0;
 
-const generalMatch = text.match(
-  /\b(?:di|area|wilayah|sekitar|daerah|dekat)\s+([a-z][a-z\s-]{2,35}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga)|[,.;!?]|$)/i
-);
+const buyIntent =
+  /\b(beli|membeli|pembelian|dibeli|kpr|cash|tunai|cicilan)\b/i.test(lower)
+  && demandSignals.length > 0;
 
-const detectedLocation = adminMatch
-  ? `${adminMatch[1]} ${adminMatch[2]}`.trim()
-  : generalMatch?.[1]?.trim();
+const transaction =
+  rentIntent && !buyIntent ? "Sewa" :
+  buyIntent && !rentIntent ? "Beli" :
+  rentIntent && buyIntent ? "Beli / Sewa" :
+  "Belum diketahui";
 
-const location = detectedLocation || searchLocation || "Belum disebutkan";
+const leadType =
+  transaction === "Sewa" ? "Tenant" :
+  transaction === "Beli" ? "Buyer" :
+  "Belum terklasifikasi";
