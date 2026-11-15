@@ -1,10 +1,13 @@
-const locationMatch = text.match(
-  /(?:di|area|wilayah|sekitar|daerah|dekat)\s+([a-z][a-z\s-]{2,35})/i
+const adminMatch = text.match(
+  /\b(kecamatan|kec\.?|kelurahan|kel\.?|desa|kabupaten|kab\.?|kota)\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga)|[,.;!?]|$)/i
 );
 
-const detectedLocation = locationMatch?.[1]
-  ?.trim()
-  .split(/[,.!?;]/)[0]
-  .slice(0, 45);
+const generalMatch = text.match(
+  /\b(?:di|area|wilayah|sekitar|daerah|dekat)\s+([a-z][a-z\s-]{2,35}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga)|[,.;!?]|$)/i
+);
 
-const location = detectedLocation || "Belum disebutkan";
+const detectedLocation = adminMatch
+  ? `${adminMatch[1]} ${adminMatch[2]}`.trim()
+  : generalMatch?.[1]?.trim();
+
+const location = detectedLocation || searchLocation || "Belum disebutkan";
