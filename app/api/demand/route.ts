@@ -15,13 +15,18 @@ const DEMAND_PHRASES = [
   "butuh tanah",
   "butuh ruko",
   "butuh kontrakan",
+  "butuh kos",
+  "butuh tempat tinggal",
   "cari rumah",
   "cari tanah",
   "cari ruko",
   "cari kontrakan",
+  "cari kos",
+  "cari tempat tinggal",
   "mencari rumah",
   "mencari tanah",
   "mencari properti",
+  "mencari kontrakan",
   "sedang mencari",
   "lagi cari rumah",
   "ada yang punya rumah",
@@ -30,50 +35,10 @@ const DEMAND_PHRASES = [
   "minta info rumah",
   "siapa tahu ada rumah",
   "sedang membutuhkan rumah",
+  "rumah untuk keluarga",
   "looking for a house",
-  "looking for property"
-];
-
-const STRONG_DEMAND_PHRASES = [
-  "saya sedang mencari",
-  "saya mencari rumah",
-  "saya mencari tanah",
-  "saya butuh rumah",
-  "saya butuh tanah",
-  "saya butuh ruko",
-  "sedang membutuhkan rumah",
-  "mau membeli rumah",
-  "ingin membeli rumah",
-  "mau beli rumah",
-  "ingin beli rumah",
-  "mencari rumah untuk dibeli",
-  "cari rumah untuk dibeli",
-  "mau menyewa rumah",
-  "ingin menyewa rumah",
-  "mau sewa rumah",
-  "ingin sewa rumah",
-  "mencari rumah untuk disewa",
-  "cari rumah untuk disewa",
-  "looking to buy",
-  "looking to rent"
-];
-
-const OFFER_PHRASES = [
-  "saya jual rumah",
-  "kami jual rumah",
-  "rumah dijual",
-  "tanah dijual",
-  "ruko dijual",
-  "disewakan rumah",
-  "disewakan ruko",
-  "open listing",
-  "open titip jual",
-  "hubungi saya untuk membeli",
-  "marketing properti",
-  "agen properti",
-  "dijual cepat",
-  "dikontrakkan",
-  "iklan properti"
+  "looking for property",
+  "looking for rental"
 ];
 
 const BUY_PHRASES = [
@@ -87,9 +52,12 @@ const BUY_PHRASES = [
   "mencari rumah untuk dibeli",
   "cari tanah untuk dibeli",
   "mencari tanah untuk dibeli",
-  "kpr",
-  "pembelian rumah",
-  "looking to buy"
+  "butuh rumah untuk dibeli",
+  "mencari rumah second",
+  "mencari rumah cash",
+  "mencari rumah kpr",
+  "looking to buy",
+  "want to buy"
 ];
 
 const RENT_PHRASES = [
@@ -108,8 +76,58 @@ const RENT_PHRASES = [
   "ingin ngontrak",
   "mencari kos",
   "butuh kos",
-  "looking to rent"
+  "cari kos",
+  "rumah bulanan",
+  "sewa bulanan",
+  "sewa tahunan",
+  "rumah kontrakan",
+  "looking to rent",
+  "want to rent"
 ];
+
+const STRONG_DEMAND_PHRASES = [
+  ...BUY_PHRASES,
+  ...RENT_PHRASES,
+  "saya sedang mencari rumah",
+  "saya mencari rumah",
+  "saya butuh rumah",
+  "saya butuh tanah",
+  "saya butuh ruko",
+  "ada yang punya rumah untuk saya",
+  "mohon info rumah",
+  "tolong carikan rumah"
+];
+
+const OFFER_PHRASES = [
+  "saya jual rumah",
+  "kami jual rumah",
+  "rumah dijual",
+  "tanah dijual",
+  "ruko dijual",
+  "dijual cepat",
+  "disewakan rumah",
+  "rumah disewakan",
+  "tanah disewakan",
+  "ruko disewakan",
+  "open listing",
+  "open titip jual",
+  "titip jual rumah",
+  "hubungi saya untuk membeli",
+  "marketing properti",
+  "agen properti",
+  "iklan properti",
+  "property for sale",
+  "house for sale"
+];
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function getSource(url: string) {
   try {
@@ -120,32 +138,51 @@ function getSource(url: string) {
     if (host.includes("instagram.com")) return "Instagram";
     if (host.includes("youtube.com")) return "YouTube";
 
-    return "Web / Forum";
+    return "Google / Web";
   } catch {
     return "Web / Forum";
   }
+}
+
+function detectLocation(text: string, fallback: string) {
+  const adminMatch = text.match(
+    /\b(kecamatan|kec\.?|kelurahan|kel\.?|desa|kabupaten|kab\.?|kota)\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga|luas)|[,.;!?]|$)/i
+  );
+
+  if (adminMatch) {
+    return `${adminMatch[1]} ${adminMatch[2]}`.trim();
+  }
+
+  const generalMatch = text.match(
+    /\b(?:di|area|wilayah|sekitar|daerah|dekat)\s+([a-z][a-z\s-]{2,35}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga|luas)|[,.;!?]|$)/i
+  );
+
+  return generalMatch?.[1]?.trim() || fallback;
 }
 
 function analyzeLead(
   item: SearchResult,
   searchLocation: string
 ) {
-  const text = `${item.title || ""} ${item.content || ""}`;
-  const lower = text.toLowerCase();
+  const title = item.title || "";
+  const content = item.content || "";
+  const text = `${title} ${content}`;
+  const lower = normalizeText(text);
 
   const demandSignals = DEMAND_PHRASES.filter(
-    phrase => lower.includes(phrase)
+    phrase => lower.includes(normalizeText(phrase))
   );
 
   const strongDemand = STRONG_DEMAND_PHRASES.some(
-    phrase => lower.includes(phrase)
+    phrase => lower.includes(normalizeText(phrase))
   );
 
   const offerSignals = OFFER_PHRASES.filter(
-    phrase => lower.includes(phrase)
+    phrase => lower.includes(normalizeText(phrase))
   );
 
-  // Iklan penjual tidak otomatis dianggap sebagai calon buyer/tenant.
+  // Konten penawaran tanpa indikasi kuat bahwa penulis sedang mencari
+  // tidak dianggap sebagai calon prospek.
   const isDemand =
     demandSignals.length > 0 &&
     (offerSignals.length === 0 || strongDemand);
@@ -165,13 +202,12 @@ function analyzeLead(
       words.some(word => lower.includes(word))
     )?.[0] || "Belum diketahui";
 
-  // Kata budget/anggaran tidak digunakan untuk menentukan transaksi.
   const buyIntent = BUY_PHRASES.some(
-    phrase => lower.includes(phrase)
+    phrase => lower.includes(normalizeText(phrase))
   );
 
   const rentIntent = RENT_PHRASES.some(
-    phrase => lower.includes(phrase)
+    phrase => lower.includes(normalizeText(phrase))
   );
 
   const transaction =
@@ -184,60 +220,57 @@ function analyzeLead(
     transaction === "Sewa" ? "Tenant" :
     transaction === "Beli" ? "Buyer" :
     transaction === "Beli / Sewa" ? "Buyer / Tenant" :
-    "Belum terklasifikasi";
+    "Perlu Verifikasi";
 
   const budgetMatch = text.match(
-    /(?:rp\.?\s*)?\d+(?:[.,]\d+)?\s*(?:miliar|juta|jt|ribu|rb|m)\b/i
+    /(?:rp\.?\s*)?\d+(?:[.,]\d+)?\s*(?:miliar|milyar|juta|jt|ribu|rb)\b|rp\.?\s*\d{1,3}(?:[.,]\d{3})+/i
   );
 
   const budgetText = budgetMatch?.[0] || "Belum disebutkan";
 
-  // Mengenali tingkatan wilayah administratif.
-  const adminMatch = text.match(
-    /\b(kecamatan|kec\.?|kelurahan|kel\.?|desa|kabupaten|kab\.?|kota)\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga)|[,.;!?]|$)/i
-  );
+  const location = detectLocation(text, searchLocation);
 
-  const generalMatch = text.match(
-    /\b(?:di|area|wilayah|sekitar|daerah|dekat)\s+([a-z][a-z\s-]{2,35}?)(?=\s+(?:dengan|dan|untuk|budget|anggaran|harga)|[,.;!?]|$)/i
-  );
-
-  const detectedLocation = adminMatch
-    ? `${adminMatch[1]} ${adminMatch[2]}`.trim()
-    : generalMatch?.[1]?.trim();
-
-  const location =
-    detectedLocation || searchLocation || "Belum disebutkan";
+  const locationFound = location !== searchLocation;
 
   const signals: string[] = [];
   let score = 0;
 
   if (isDemand) {
     score += 30;
-    signals.push("Ada indikasi kebutuhan properti");
+    signals.push("Indikasi kebutuhan properti");
+  }
+
+  if (strongDemand) {
+    score += 15;
+    signals.push("Kalimat pencarian cukup jelas");
   }
 
   if (transaction !== "Belum diketahui") {
     score += 20;
     signals.push("Tujuan transaksi terdeteksi");
+  } else if (isDemand) {
+    signals.push("Transaksi perlu dikonfirmasi");
   }
 
-  if (location !== "Belum disebutkan") {
+  if (locationFound) {
     score += 15;
-    signals.push("Lokasi terdeteksi");
+    signals.push("Lokasi ditemukan dalam konten");
+  } else {
+    signals.push("Lokasi mengikuti pencarian");
   }
 
   if (budgetText !== "Belum disebutkan") {
-    score += 15;
+    score += 10;
     signals.push("Budget terdeteksi");
   }
 
   if (propertyType !== "Belum diketahui") {
-    score += 10;
+    score += 5;
     signals.push("Jenis properti terdeteksi");
   }
 
   if (item.published_date) {
-    score += 10;
+    score += 5;
     signals.push("Tanggal posting tersedia");
   }
 
@@ -251,9 +284,9 @@ function analyzeLead(
     "Prioritas Rendah";
 
   return {
-    title: item.title || "Kebutuhan properti",
+    title: title || "Kebutuhan properti",
     url: item.url || "",
-    snippet: item.content || "",
+    snippet: content,
     source: getSource(item.url || ""),
     published_date: item.published_date || null,
     lead_type: leadType,
@@ -267,7 +300,7 @@ function analyzeLead(
     signals,
     intent_match: isDemand
       ? "Indikasi kebutuhan properti"
-      : "Perlu verifikasi"
+      : "Bukan prospek terkonfirmasi"
   };
 }
 
@@ -298,55 +331,70 @@ export async function GET(request: Request) {
     );
   }
 
-  const base = [
-    type,
-    location,
-    transaction,
-    budget
-  ].filter(Boolean).join(" ");
+  // Hindari mengulang kata transaksi dalam setiap query dasar.
+  const base = [type, location, budget]
+    .filter(Boolean)
+    .join(" ");
 
-  const buyQuery = [
+  const buyQueries = [
+    '"butuh rumah untuk dibeli"',
     '"mau beli rumah"',
     '"ingin membeli rumah"',
-    '"mencari rumah untuk dibeli"',
-    '"butuh rumah untuk dibeli"',
-    '"cari tanah untuk dibeli"'
+    '"mencari rumah cash"',
+    '"mencari rumah KPR"',
+    '"cari tanah untuk dibeli"',
+    '"sedang mencari rumah"',
+    '"looking to buy a house"'
   ];
 
-  const rentQuery = [
-    '"mau sewa rumah"',
-    '"ingin menyewa rumah"',
-    '"mencari rumah untuk disewa"',
+  const rentQueries = [
     '"butuh kontrakan"',
-    '"mencari kos"'
+    '"cari rumah kontrakan"',
+    '"mencari rumah bulanan"',
+    '"butuh rumah sewa"',
+    '"mencari rumah untuk disewa"',
+    '"ada yang punya rumah untuk disewa"',
+    '"mau ngontrak rumah"',
+    '"cari kos"',
+    '"looking to rent a house"'
   ];
 
-  const genericQuery = [
+  const generalQueries = [
     '"butuh rumah"',
     '"cari rumah"',
+    '"mencari rumah"',
     '"mencari properti"',
     '"ada rekomendasi rumah"',
-    '"minta info rumah"'
+    '"minta info rumah"',
+    '"sedang mencari tempat tinggal"'
   ];
 
-  const intentQueries =
-    transaction === "beli"
-      ? buyQuery
-      : transaction === "sewa"
-      ? rentQuery
-      : [...buyQuery, ...rentQuery, ...genericQuery];
+  let intentQueries: string[];
+
+  if (transaction === "beli") {
+    intentQueries = [...buyQueries, ...generalQueries];
+  } else if (transaction === "sewa") {
+    intentQueries = [...rentQueries, ...generalQueries];
+  } else {
+    intentQueries = [
+      ...buyQueries,
+      ...rentQueries,
+      ...generalQueries
+    ];
+  }
 
   const queries = [
     ...intentQueries.map(term => `${base} ${term}`),
 
-    `${base} kebutuhan properti calon pembeli`,
-    `${base} kebutuhan kontrakan calon penyewa`,
+    `${base} kebutuhan properti komunitas`,
+    `${base} calon pembeli properti`,
+    `${base} calon penyewa rumah`,
 
     `${base} site:threads.net`,
     `${base} site:facebook.com`,
     `${base} site:instagram.com`,
 
-    `${base} kebutuhan properti forum komunitas`
+    `${base} forum diskusi properti`
   ];
 
   try {
@@ -371,20 +419,36 @@ export async function GET(request: Request) {
             }
           );
 
-          if (!response.ok) return [];
+          if (!response.ok) {
+            return {
+              results: [] as SearchResult[],
+              failed: true
+            };
+          }
 
           const data = await response.json();
-          return (data.results || []) as SearchResult[];
+
+          return {
+            results: (data.results || []) as SearchResult[],
+            failed: false
+          };
         } catch {
-          return [];
+          return {
+            results: [] as SearchResult[],
+            failed: true
+          };
         }
       })
     );
 
-    // Menghapus URL duplikat.
+    const rawResults = batches.flatMap(
+      batch => batch.results
+    );
+
+    // Deduplicasi berdasarkan URL.
     const unique = new Map<string, SearchResult>();
 
-    for (const item of batches.flat()) {
+    for (const item of rawResults) {
       if (!item.url) continue;
 
       try {
@@ -393,6 +457,9 @@ export async function GET(request: Request) {
         if (!["http:", "https:"].includes(url.protocol)) {
           continue;
         }
+
+        url.search = "";
+        url.hash = "";
 
         const key = url.origin + url.pathname;
 
@@ -408,36 +475,59 @@ export async function GET(request: Request) {
       item => analyzeLead(item, location)
     );
 
-    // Hanya tampilkan indikasi kebutuhan properti.
-    const results = analyzed
-      .filter(lead => {
-        if (lead.score <= 0) return false;
+    const demandCandidates = analyzed.filter(
+      lead => lead.score > 0
+    );
 
-        if (transaction === "beli") {
-          return lead.transaction === "Beli";
-        }
+    // Hasil tanpa klasifikasi transaksi tetap ditampilkan
+    // agar tidak kehilangan prospek yang perlu diverifikasi.
+    const results = demandCandidates.filter(lead => {
+      if (transaction === "beli") {
+        return (
+          lead.transaction === "Beli" ||
+          lead.transaction === "Belum diketahui"
+        );
+      }
 
-        if (transaction === "sewa") {
-          return lead.transaction === "Sewa";
-        }
+      if (transaction === "sewa") {
+        return (
+          lead.transaction === "Sewa" ||
+          lead.transaction === "Belum diketahui"
+        );
+      }
 
-        return true;
-      })
-      .sort((a, b) => b.score - a.score);
+      return true;
+    });
+
+    results.sort((a, b) => b.score - a.score);
 
     return NextResponse.json({
       success: true,
       query: base,
       result_count: results.length,
+
+      diagnostics: {
+        queries_sent: queries.length,
+        raw_results: rawResults.length,
+        unique_results: unique.size,
+        demand_candidates: demandCandidates.length,
+        final_results: results.length,
+        failed_queries: batches.filter(
+          batch => batch.failed
+        ).length
+      },
+
       sources_searched: [
-        "Web",
-        "Threads",
-        "Facebook",
-        "Instagram",
+        "Google / Web",
+        "Threads terindeks",
+        "Facebook terindeks",
+        "Instagram terindeks",
         "Forum"
       ],
+
       note:
-        "Hasil merupakan indikasi kebutuhan berdasarkan konten publik dan perlu diverifikasi.",
+        "Hasil adalah indikasi kebutuhan dari konten publik. Prospek yang belum menyebutkan transaksi secara jelas ditandai Perlu Verifikasi.",
+
       results
     });
 
